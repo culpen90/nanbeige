@@ -13,13 +13,25 @@ You need an Apple Silicon Mac and `uv`. Run these commands from the checkout.
 
 If the launcher is installed on your PATH, use `nanbeige chat --stats` from any directory.
 
-Use `chat` to keep the weights resident across turns. It reuses the exact common token prefix, including previously generated text when the template produces the same IDs. Use `/reset` to clear the conversation and its memory. The model uses the repository's direct-answer template and greedy decoding by default. `--think` enables its reasoning template; allow more output tokens for longer answers. Use `--temperature 0.6 --top-p 0.95` for sampled output.
+Use `chat` to keep the weights resident across turns. It reuses the exact common token prefix, including previously generated text when the template produces the same IDs. The model uses the repository's direct-answer template and greedy decoding by default. `--think` enables its reasoning template; allow more output tokens for longer answers. Use `--temperature 0.6 --top-p 0.95` for sampled output.
 
 The default context limit is 2,048 tokens, **including the requested output**. Full precision attention caches use about 176 KiB per token before allocation padding. Only raise `--context` as needed. `--kv-bits 8` or `4` is an independent, opt-in compression of the attention cache; it can change outputs and can cost speed even when it saves RAM. Neither changes the model's 6-bit weights.
 
 On this 8 GB MacBook Neo, the default keeps the main weights resident, packs parallel projections, and reads only the needed rows of the 395.5 MiB input embedding. It measured **7.38 tokens/s** on the short test, with **3,009 MiB peak MLX allocation**. See [the benchmark notes](benchmarks/README.md) for the timings and conditions. Packing preserves the original weights, although batching and packing can choose different floating-point kernels. Use `--resident` to keep the input embedding in MLX memory as well.
 
 If a VM is running and unified memory is tight, the launcher can switch to streaming groups of weights and keeping only some layers resident. This is slower but lets the exact model run when a normal resident model stalls. You can select it explicitly with `--stream-weights 2 --resident-layers 20`; lower the retained layer count if you need headroom. For highest sustained speed, close large VMs and other heavy applications, plug in, and turn off Low Power Mode.
+
+## Memory
+
+`chat` keeps recent turns in context and can recall short excerpts from older turns as the context fills. Recall runs locally using keyword matching and recency, so it works offline without an embedding model. The most recent user message and requested output still need to fit the context limit.
+
+`chat` saves memory across sessions by default in `~/nanbeige-memory.sqlite3`. Start a chat with `./nanbeige chat` and use `/remember My workshop project is called Cedar.` to save a note. Quit and start another chat to recall it.
+
+Use `./nanbeige chat --session-only` for a temporary chat with its own memory in RAM. Use `--memory PATH` to select a different database or to give a one-shot `run` access to a database.
+
+Use `/memory` to list explicit notes, `/forget ID` to remove a note, and `/clear-memory` to erase notes and saved turns and start a new chat. `/reset` starts a new chat while keeping the database. In a session started with `--session-only`, `/reset` also clears its temporary memory. Forgetting a note does not remove separate turns that mention it.
+
+The database stores explicit notes and bounded excerpts from completed turns as local, unencrypted text. You can use `./nanbeige memory PATH list` to inspect notes or `./nanbeige memory PATH history` to inspect saved turns without loading the model. That command also accepts `remember TEXT`, `forget ID`, and `clear`. Use different paths for separate memories. The local API stays stateless; its clients supply their conversation history as before.
 
 ## Local API
 
