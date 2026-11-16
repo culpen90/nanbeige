@@ -1,0 +1,76 @@
+{
+  "model": "MercuriusDream/Nanbeige4.2-3B-mlx-6bit",
+  "revision": "0ed232c61a153d4596bf3cf346f5a1a9b1acd870",
+  "hardware": "Mac17,5\nApple A18 Pro\n8589934592",
+  "os": "26.6.2",
+  "power": "Now drawing from 'Battery Power'\n -InternalBattery-0\t64%; discharging; 1:30 remaining present: true",
+  "low_power_mode": "lowpowermode         1",
+  "swap_before": "total = 14336.00M  used = 13745.88M  free = 590.12M  (encrypted)",
+  "wired_bytes": 3484925952,
+  "versions": {
+    "mlx": "0.32.4",
+    "mlx-lm": "0.32.2",
+    "transformers": "5.23.0",
+    "mlx-dspark": "0.20.4"
+  },
+  "max_tokens": 20,
+  "suite": "spec",
+  "runs": [
+    {
+      "profile": "baseline",
+      "workload": "short",
+      "settings": {
+        "context": 2048,
+        "prefill": 256,
+        "cache_mib": 128,
+        "kv_bits": null,
+        "impl": "fast",
+        "fused": true,
+        "disk_embedding": true,
+        "layer_chunk": 0,
+        "stream_weights": 0,
+        "resident_layers": 0,
+        "lookup": 0,
+        "last_row_prefill": false
+      },
+      "samples": [
+        {
+          "prompt_tokens": 58,
+          "generated_tokens": 20,
+          "ttft_s": 0.8929618330002995,
+          "prefill_tps": 75.95719638307439,
+          "decode_tps": 7.213818224784618,
+          "wall_s": 3.6512327079981333,
+          "peak_mib": 3011.186683654785,
+          "token_sha256": "834e00c045c970f264fc278a117fc1b00c9003b08fb704ee8d52e7da8eefb5a1",
+          "exact_match": true,
+          "mean_accept": 1.0,
+          "finish_reason": "length"
+        },
+        {
+          "prompt_tokens": 58,
+          "generated_tokens": 20,
+          "ttft_s": 1.0136207500036107,
+          "prefill_tps": 64.96291924739354,
+          "decode_tps": 6.581807157298497,
+          "wall_s": 4.011486165996757,
+          "peak_mib": 3011.171058654785,
+          "token_sha256": "834e00c045c970f264fc278a117fc1b00c9003b08fb704ee8d52e7da8eefb5a1",
+          "exact_match": true,
+          "mean_accept": 1.0,
+          "finish_reason": "length"
+        }
+      ],
+      "median": {
+        "ttft_s": 0.9532912915019551,
+        "decode_tps": 6.897812691041558,
+        "prefill_tps": 70.46005781523397,
+        "wall_s": 3.8313594369974453,
+        "peak_mib": 3011.178871154785
+      }
+    }
+  ],
+  "draft_cap": 4,
+  "draft_bits": 2,
+  "swap_after": "total = 14336.00M  used = 13378.06M  free = 957.94M  (encrypted)"
+}

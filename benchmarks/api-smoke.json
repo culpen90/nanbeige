@@ -1,0 +1,30 @@
+{
+  "model": "MercuriusDream/Nanbeige4.2-3B-mlx-6bit",
+  "output": "Hello! How can I assist you today?",
+  "json_usage": {
+    "prompt_tokens": 41,
+    "completion_tokens": 10,
+    "total_tokens": 51,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "json_metrics": {
+    "ttft_s": 30.380266791995382,
+    "decode_tps": 5.960012125106764,
+    "prefill_tps": 1.3495602352907154
+  },
+  "stream_usage": {
+    "prompt_tokens": 41,
+    "completion_tokens": 10,
+    "total_tokens": 51,
+    "prompt_tokens_details": {
+      "cached_tokens": 40
+    }
+  },
+  "stream_metrics": {
+    "ttft_s": 0.2615223330067238,
+    "decode_tps": 7.06848379060739,
+    "prefill_tps": 3.823765215394778
+  }
+}

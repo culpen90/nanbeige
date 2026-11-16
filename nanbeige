@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+launcher=$(/usr/bin/readlink -f "$0")
+root=$(dirname -- "$launcher")
+if ! command -v uv >/dev/null 2>&1; then
+    echo "Install uv, then run nanbeige setup." >&2
+    exit 1
+fi
+if [ "$(uname -s)/$(uname -m)" != "Darwin/arm64" ]; then
+    echo "Nanbeige needs native Apple Silicon macOS (arm64)." >&2
+    exit 1
+fi
+export HF_HUB_DISABLE_TELEMETRY=1
+export TOKENIZERS_PARALLELISM=false
+case "${1:-}" in
+    spec|bench-spec) exec uv run --project "$root" --locked --extra dspark python "$root/nanbeige_cli.py" "$@" ;;
+esac
+exec uv run --project "$root" --locked python "$root/nanbeige_cli.py" "$@"

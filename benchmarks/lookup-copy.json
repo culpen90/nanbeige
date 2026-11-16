@@ -1,0 +1,122 @@
+{
+  "model": "MercuriusDream/Nanbeige4.2-3B-mlx-6bit",
+  "revision": "0ed232c61a153d4596bf3cf346f5a1a9b1acd870",
+  "hardware": "Mac17,5\nApple A18 Pro\n8589934592",
+  "os": null,
+  "power": "Now drawing from 'Battery Power'\n -InternalBattery-0\t62%; discharging; 1:27 remaining present: true",
+  "low_power_mode": "lowpowermode         1",
+  "swap_before": "total = 14336.00M  used = 13477.69M  free = 858.31M  (encrypted)",
+  "wired_bytes": 3324198912,
+  "versions": {
+    "mlx": "0.32.4",
+    "mlx-lm": "0.32.2",
+    "transformers": "5.23.0"
+  },
+  "max_tokens": 24,
+  "suite": "lookup",
+  "runs": [
+    {
+      "profile": "greedy",
+      "workload": "copy",
+      "settings": {
+        "context": 2048,
+        "prefill": 256,
+        "cache_mib": 128,
+        "kv_bits": null,
+        "impl": "fast",
+        "fused": true,
+        "disk_embedding": true,
+        "layer_chunk": 0,
+        "stream_weights": 0,
+        "resident_layers": 0,
+        "lookup": 0,
+        "last_row_prefill": false
+      },
+      "samples": [
+        {
+          "prompt_tokens": 343,
+          "generated_tokens": 24,
+          "cached_tokens": 0,
+          "ttft_s": 4.834759459001361,
+          "decode_tps": 6.671818149562494,
+          "prefill_tps": 70.94458429806723,
+          "wall_s": 8.30082366699935,
+          "peak_mib": 3337.5625953674316,
+          "finish_reason": "length",
+          "token_sha256": "030fb72adf723d3db3368d73cafbeafd5ffe7274a5eebcdfe95078b80687b7ed"
+        },
+        {
+          "prompt_tokens": 343,
+          "generated_tokens": 24,
+          "cached_tokens": 0,
+          "ttft_s": 5.3167330419964856,
+          "decode_tps": 6.984052550022131,
+          "prefill_tps": 64.51330117398562,
+          "wall_s": 8.615742042005877,
+          "peak_mib": 3337.5469703674316,
+          "finish_reason": "length",
+          "token_sha256": "030fb72adf723d3db3368d73cafbeafd5ffe7274a5eebcdfe95078b80687b7ed"
+        }
+      ],
+      "median": {
+        "ttft_s": 5.0757462504989235,
+        "decode_tps": 6.8279353497923125,
+        "prefill_tps": 67.72894273602643,
+        "wall_s": 8.458282854502613,
+        "peak_mib": 3337.5547828674316
+      }
+    },
+    {
+      "profile": "lookup",
+      "workload": "copy",
+      "settings": {
+        "context": 2048,
+        "prefill": 256,
+        "cache_mib": 128,
+        "kv_bits": null,
+        "impl": "fast",
+        "fused": true,
+        "disk_embedding": true,
+        "layer_chunk": 0,
+        "stream_weights": 0,
+        "resident_layers": 0,
+        "lookup": 4,
+        "last_row_prefill": false
+      },
+      "samples": [
+        {
+          "prompt_tokens": 343,
+          "generated_tokens": 24,
+          "cached_tokens": 0,
+          "ttft_s": 5.450176416998147,
+          "decode_tps": 2.834977442322568,
+          "prefill_tps": 62.933742645511984,
+          "wall_s": 13.57300841700635,
+          "peak_mib": 3337.5625953674316,
+          "finish_reason": "length",
+          "token_sha256": "030fb72adf723d3db3368d73cafbeafd5ffe7274a5eebcdfe95078b80687b7ed"
+        },
+        {
+          "prompt_tokens": 343,
+          "generated_tokens": 24,
+          "cached_tokens": 0,
+          "ttft_s": 5.365754416998243,
+          "decode_tps": 14.900348255764943,
+          "prefill_tps": 63.92390954632695,
+          "wall_s": 6.937680499991984,
+          "peak_mib": 3337.5469703674316,
+          "finish_reason": "length",
+          "token_sha256": "030fb72adf723d3db3368d73cafbeafd5ffe7274a5eebcdfe95078b80687b7ed"
+        }
+      ],
+      "median": {
+        "ttft_s": 5.407965416998195,
+        "decode_tps": 8.867662849043755,
+        "prefill_tps": 63.42882609591947,
+        "wall_s": 10.255344458499167,
+        "peak_mib": 3337.5547828674316
+      }
+    }
+  ],
+  "swap_after": "total = 14336.00M  used = 13279.94M  free = 1056.06M  (encrypted)"
+}

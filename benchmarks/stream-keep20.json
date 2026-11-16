@@ -1,0 +1,70 @@
+{
+  "model": "MercuriusDream/Nanbeige4.2-3B-mlx-6bit",
+  "revision": "0ed232c61a153d4596bf3cf346f5a1a9b1acd870",
+  "hardware": "Mac17,5\nApple A18 Pro\n8589934592",
+  "os": "26.6.2",
+  "power": "Now drawing from 'Battery Power'\n -InternalBattery-0\t69%; discharging; 1:44 remaining present: true",
+  "low_power_mode": "lowpowermode         1",
+  "swap_before": "total = 17408.00M  used = 15813.12M  free = 1594.88M  (encrypted)",
+  "wired_bytes": 3324215296,
+  "versions": {
+    "mlx": "0.32.4",
+    "mlx-lm": "0.32.2",
+    "transformers": "5.23.0"
+  },
+  "max_tokens": 5,
+  "suite": "single",
+  "runs": [
+    {
+      "profile": "fast-stream-2-keep-20",
+      "workload": "short",
+      "settings": {
+        "context": 2048,
+        "prefill": 256,
+        "cache_mib": 32,
+        "kv_bits": null,
+        "impl": "fast",
+        "fused": false,
+        "disk_embedding": false,
+        "layer_chunk": 0,
+        "stream_weights": 2,
+        "resident_layers": 20,
+        "lookup": 0
+      },
+      "samples": [
+        {
+          "prompt_tokens": 58,
+          "generated_tokens": 5,
+          "cached_tokens": 0,
+          "ttft_s": 3.400283832990681,
+          "decode_tps": 0.9017681250102808,
+          "prefill_tps": 17.057399572725306,
+          "wall_s": 7.870566082987352,
+          "peak_mib": 2658.552963256836,
+          "finish_reason": "length",
+          "token_sha256": "3809c15400a9af7db12ae4bc90954328d6537e01d86255e71ff770a0d48e4c1f"
+        },
+        {
+          "prompt_tokens": 58,
+          "generated_tokens": 5,
+          "cached_tokens": 0,
+          "ttft_s": 2.3641367079981137,
+          "decode_tps": 1.1068212818104266,
+          "prefill_tps": 24.533268234353848,
+          "wall_s": 5.990006790991174,
+          "peak_mib": 2658.552963256836,
+          "finish_reason": "length",
+          "token_sha256": "3809c15400a9af7db12ae4bc90954328d6537e01d86255e71ff770a0d48e4c1f"
+        }
+      ],
+      "median": {
+        "ttft_s": 2.8822102704943973,
+        "decode_tps": 1.0042947034103538,
+        "prefill_tps": 20.79533390353958,
+        "wall_s": 6.930286436989263,
+        "peak_mib": 2658.552963256836
+      }
+    }
+  ],
+  "swap_after": "total = 17408.00M  used = 16429.62M  free = 978.38M  (encrypted)"
+}

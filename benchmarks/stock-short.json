@@ -1,0 +1,82 @@
+{
+  "model": "MercuriusDream/Nanbeige4.2-3B-mlx-6bit",
+  "revision": "0ed232c61a153d4596bf3cf346f5a1a9b1acd870",
+  "hardware": "Mac17,5\nApple A18 Pro\n8589934592",
+  "os": "26.6.2",
+  "power": "Now drawing from 'Battery Power'\n -InternalBattery-0\t68%; discharging; 1:49 remaining present: true",
+  "low_power_mode": "lowpowermode         1",
+  "swap_before": "total = 15360.00M  used = 14850.00M  free = 510.00M  (encrypted)",
+  "wired_bytes": 3398893568,
+  "versions": {
+    "mlx": "0.32.4",
+    "mlx-lm": "0.32.2",
+    "transformers": "5.23.0"
+  },
+  "max_tokens": 32,
+  "suite": "compare",
+  "runs": [
+    {
+      "profile": "stock-default",
+      "workload": "short",
+      "settings": {
+        "context": 2048,
+        "prefill": 2048,
+        "cache_mib": 128,
+        "kv_bits": null,
+        "impl": "stock",
+        "fused": false,
+        "disk_embedding": false,
+        "layer_chunk": 0,
+        "stream_weights": 0,
+        "resident_layers": 0,
+        "lookup": 0
+      },
+      "samples": [
+        {
+          "prompt_tokens": 58,
+          "generated_tokens": 32,
+          "cached_tokens": 0,
+          "ttft_s": 0.9292642500076909,
+          "decode_tps": 7.476494489809054,
+          "prefill_tps": 62.414969691904076,
+          "wall_s": 5.125020083010895,
+          "peak_mib": 3401.0140228271484,
+          "finish_reason": "length",
+          "token_sha256": "36cb9e98ce698d686367b21e06cc851baf274c722b96da640e218fb9cc807767"
+        },
+        {
+          "prompt_tokens": 58,
+          "generated_tokens": 32,
+          "cached_tokens": 0,
+          "ttft_s": 1.1461320420057746,
+          "decode_tps": 7.218272008901704,
+          "prefill_tps": 50.60498954247697,
+          "wall_s": 5.50841241699527,
+          "peak_mib": 3401.0140228271484,
+          "finish_reason": "length",
+          "token_sha256": "36cb9e98ce698d686367b21e06cc851baf274c722b96da640e218fb9cc807767"
+        },
+        {
+          "prompt_tokens": 58,
+          "generated_tokens": 32,
+          "cached_tokens": 0,
+          "ttft_s": 1.1470334170007845,
+          "decode_tps": 6.946718195257374,
+          "prefill_tps": 50.56522254744417,
+          "wall_s": 5.664580125012435,
+          "peak_mib": 3401.0140228271484,
+          "finish_reason": "length",
+          "token_sha256": "36cb9e98ce698d686367b21e06cc851baf274c722b96da640e218fb9cc807767"
+        }
+      ],
+      "median": {
+        "ttft_s": 1.1461320420057746,
+        "decode_tps": 7.218272008901704,
+        "prefill_tps": 50.60498954247697,
+        "wall_s": 5.50841241699527,
+        "peak_mib": 3401.0140228271484
+      }
+    }
+  ],
+  "swap_after": "total = 14336.00M  used = 13536.81M  free = 799.19M  (encrypted)"
+}
