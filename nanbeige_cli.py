@@ -8,12 +8,15 @@ from importlib.metadata import version
 import json
 from pathlib import Path
 import re
+import sqlite3
 from statistics import median
 import subprocess
 import sys
 from time import perf_counter
 
+from nanbeige_context import prepare_chat
 from nanbeige_engine import MODEL_ID, REVISION, Engine, Settings, model_path
+from nanbeige_memory import MemoryStore
 
 
 def stderr(*args):
@@ -73,12 +76,16 @@ def messages_for(prompt, system):
     return messages + [{"role": "user", "content": prompt}]
 
 
-def display(engine, messages, args):
+def display(engine, messages, args, store=None):
     output = []
-    events = engine.generate(
-        messages, max_tokens=args.max_tokens, temperature=args.temperature,
-        thinking=args.think, top_p=args.top_p,
-    )
+    options = dict(max_tokens=args.max_tokens, temperature=args.temperature, top_p=args.top_p)
+    if store is None:
+        events = engine.generate(messages, thinking=args.think, **options)
+    else:
+        started = perf_counter()
+        ids, messages = prepare_chat(engine, messages, max_tokens=args.max_tokens,
+                                     thinking=args.think, store=store)
+        events = engine.generate_ids(ids, started=started, **options)
     try:
         for event in events:
             if event.text:
@@ -89,7 +96,14 @@ def display(engine, messages, args):
     finally:
         events.close()
     print()
-    return "".join(output)
+    return "".join(output), messages
+
+
+def visible_reply(reply, thinking):
+    _, closed, answer = reply.rpartition("</think>")
+    if closed:
+        return answer.lstrip("\n")
+    return "" if thinking else reply
 
 
 def read_prompt(args):
@@ -101,9 +115,52 @@ def read_prompt(args):
     return prompt
 
 
-def chat(engine, args):
+def note_id(value):
+    try:
+        number = int(value)
+    except ValueError:
+        number = 0
+    if not 0 < number < 2**63:
+        raise ValueError("Use a positive note ID from the memory list.")
+    return number
+
+
+def memory_command(store, action, value=None):
+    if action == "remember":
+        print(f"Saved note {store.remember(value)}.")
+    elif action == "list":
+        notes = store.notes()
+        if not notes:
+            print("No saved notes.")
+        for number, text in notes:
+            print(f"{number}\t{text!r}")
+    elif action == "history":
+        turns = store.history()
+        if not turns:
+            print("No saved turns.")
+        for user, assistant in turns:
+            print(f"you> {user!r}\nnanbeige> {assistant!r}")
+    elif action == "forget":
+        number = note_id(value)
+        if not store.forget(number):
+            raise ValueError(f"No saved note {number}.")
+        print(f"Removed note {number}.")
+    elif action == "clear":
+        store.clear()
+        print("Memory cleared.")
+
+
+_CHAT_MEMORY_COMMANDS = {
+    "/remember": "remember", "/memory": "list", "/forget": "forget", "/clear-memory": "clear",
+}
+
+
+def chat(engine, args, store):
     messages = messages_for("", args.system)[:-1]
-    stderr("Enter a prompt. /reset clears the chat; /quit exits.")
+    stderr("Enter a prompt. /remember TEXT saves a note; /memory lists notes; /forget ID removes a note.")
+    stderr("/reset starts a new chat; /clear-memory clears the chat and saved memory; /quit exits.")
+    if args.memory is not None:
+        stderr(f"Saving chat memory to {str(args.memory)!r}.")
     while True:
         try:
             prompt = input("\nyou> ").strip()
@@ -112,25 +169,44 @@ def chat(engine, args):
             return
         if prompt == "/quit":
             return
-        if prompt == "/reset":
-            engine.reset()
-            messages = messages_for("", args.system)[:-1]
-            continue
         if not prompt:
+            continue
+        command, *values = prompt.split(maxsplit=1)
+        if command == "/reset" or command in _CHAT_MEMORY_COMMANDS:
+            try:
+                takes_value = command in ("/remember", "/forget")
+                if takes_value != bool(values):
+                    usage = {"/remember": " TEXT", "/forget": " ID"}
+                    raise ValueError(f"Usage: {command}{usage.get(command, '')}")
+                if command == "/reset":
+                    if args.memory is None:
+                        store.clear()
+                else:
+                    memory_command(store, _CHAT_MEMORY_COMMANDS[command], values[0] if values else None)
+                if command in ("/reset", "/clear-memory"):
+                    engine.reset()
+                    messages = messages_for("", args.system)[:-1]
+            except (OSError, ValueError, sqlite3.Error) as exc:
+                stderr(exc)
             continue
         turn = [*messages, {"role": "user", "content": prompt}]
         try:
             print("nanbeige> ", end="", flush=True)
-            reply = display(engine, turn, args)
+            reply, retained = display(engine, turn, args, store)
         except KeyboardInterrupt:
             print()
             stderr("Generation interrupted.")
             continue
-        except ValueError as exc:
+        except (OSError, ValueError, sqlite3.Error) as exc:
             print()
             stderr(exc)
             continue
-        messages = [*turn, {"role": "assistant", "content": reply}]
+        answer = visible_reply(reply, args.think)
+        messages = [*retained, {"role": "assistant", "content": answer}]
+        try:
+            store.record(prompt, answer)
+        except (OSError, ValueError, sqlite3.Error) as exc:
+            stderr(f"Couldn't save this turn: {exc}")
 
 
 def sysinfo(cmd):
@@ -392,7 +468,20 @@ def main():
     setup.add_argument("--dspark", action="store_true", help="also download the official speculative draft head")
     run = sub.add_parser("run", parents=[common, generation], help="answer a prompt (or read stdin)")
     run.add_argument("prompt", nargs="?")
-    sub.add_parser("chat", parents=[common, generation], help="keep the model hot across turns")
+    run.add_argument("--memory", type=Path, metavar="PATH", help="recall and save turns in this local database")
+    interactive = sub.add_parser("chat", parents=[common, generation], help="keep the model hot across turns")
+    chat_memory = interactive.add_mutually_exclusive_group()
+    chat_memory.add_argument("--memory", type=Path, metavar="PATH",
+                             help="use a different database (default: ~/nanbeige-memory.sqlite3)")
+    chat_memory.add_argument("--session-only", action="store_true", help="keep memory only for this session")
+    memory = sub.add_parser("memory", help="inspect or manage a local memory database without loading the model")
+    memory.add_argument("path", type=Path)
+    actions = memory.add_subparsers(dest="action", required=True)
+    actions.add_parser("list", help="list explicit notes")
+    actions.add_parser("history", help="show saved excerpts of past turns")
+    actions.add_parser("remember", help="add an explicit note").add_argument("value", metavar="TEXT")
+    actions.add_parser("forget", help="remove an explicit note").add_argument("value", metavar="ID")
+    actions.add_parser("clear", help="delete all notes and past turns")
     spec = sub.add_parser("spec", parents=[common, generation], help="try target-verified speculative decoding")
     spec.add_argument("prompt", nargs="?")
     spec.add_argument("--mode", choices=["lookup", "dspark"], default="lookup")
@@ -424,19 +513,34 @@ def main():
 
                 print(fetch_drafter())
             return 0
+        if args.command == "memory":
+            with MemoryStore(args.path) as store:
+                memory_command(store, args.action, getattr(args, "value", None))
+            return 0
         settings = settings_from(args)
         if args.command == "serve":
             from nanbeige_server import serve
 
             serve(lambda: load_engine(settings), host=args.host, port=args.port)
             return 0
-        if args.command in ("run", "spec"):
+        if args.command == "chat":
+            if args.memory is None and not args.session_only:
+                args.memory = Path.home() / "nanbeige-memory.sqlite3"
+            with MemoryStore(args.memory) as store:
+                chat(load_engine(settings), args, store)
+            return 0
+        if args.command == "run":
+            prompt = read_prompt(args)
+            memory = MemoryStore(args.memory) if args.memory is not None else nullcontext()
+            with memory as store:
+                reply, _ = display(load_engine(settings), messages_for(prompt, args.system), args, store)
+                if store is not None:
+                    store.record(prompt, visible_reply(reply, args.think))
+            return 0
+        if args.command == "spec":
             messages = messages_for(read_prompt(args), args.system)
-            drafter = preload_draft(args.draft_bits) if args.command == "spec" and args.mode == "dspark" else None
+            drafter = preload_draft(args.draft_bits) if args.mode == "dspark" else None
             engine = load_engine(settings)
-            if args.command == "run":
-                display(engine, messages, args)
-                return 0
             ids = engine.prepare(messages, args.max_tokens, args.think)
             runner = spec_runner(engine, args.mode, args.draft_cap, args.draft_bits, drafter)
             with spec_wiring(engine):
@@ -455,11 +559,8 @@ def main():
             else None
         )
         engine = load_engine(settings)
-        if args.command == "chat":
-            chat(engine, args)
-            return 0
         return bench_spec(engine, args, drafter) if args.command == "bench-spec" else bench(engine, args)
-    except (RuntimeError, ValueError, OSError) as exc:
+    except (RuntimeError, ValueError, OSError, sqlite3.Error) as exc:
         stderr(f"nanbeige: {exc}")
         return 1
     except KeyboardInterrupt:
