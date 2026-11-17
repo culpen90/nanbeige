@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import nanbeige_cli
 from nanbeige_compression import CompressionWatcher
-from nanbeige_engine import Engine, Event
+from nanbeige_engine import CheckpointUnavailableError, Engine, Event, Settings
 
 
 class StubEngine(Engine):
@@ -39,30 +39,38 @@ class MemoryCLITests(unittest.TestCase):
         self.path = str(self.home / "notes.sqlite3")
         self.engines = []
 
-    def invoke(self, *argv, stdin=""):
-        def load(settings):
-            engine = StubEngine(settings)
-            self.engines.append(engine)
-            return engine
+    def make_engine(self, settings):
+        engine = StubEngine(settings)
+        self.engines.append(engine)
+        return engine
 
+    def invoke(self, *argv, stdin=""):
         output, error = StringIO(), StringIO()
         with (patch("sys.argv", ["nanbeige", *argv]), patch("sys.stdin", StringIO(stdin)),
               patch.object(Path, "home", return_value=self.home),
-              patch.object(nanbeige_cli, "load_engine", side_effect=load),
+              patch.object(nanbeige_cli, "Engine", side_effect=self.make_engine),
               redirect_stdout(output), redirect_stderr(error)):
             result = nanbeige_cli.main()
         self.assertEqual(result, 0, error.getvalue())
         return output.getvalue()
 
     def test_plain_chat_recalls_notes_and_completed_turns_across_invocations(self):
-        self.invoke("chat", "--impl", "stock",
-                    stdin="/remember My workshop project is called Cedar.\nMy vise is cobalt blue.\n/quit\n")
+        self.invoke(stdin="/remember My workshop project is called Cedar.\nMy vise is cobalt blue.\n/quit\n")
         self.assertTrue(self.default_path.is_file())
 
         self.invoke("chat", "--impl", "stock",
                     stdin="What is my workshop project called, and what color is my vise?\n/quit\n")
         self.assertIn("Cedar", self.engines[-1].last_prompt)
         self.assertIn("cobalt blue", self.engines[-1].last_prompt)
+
+    def test_chat_downloads_missing_checkpoint_and_starts(self):
+        engine = StubEngine(Settings())
+        with (patch.object(self, "make_engine", side_effect=[CheckpointUnavailableError(), engine]) as load,
+              patch.object(nanbeige_cli, "model_path") as download):
+            output = self.invoke("chat", "--impl", "stock", "--session-only", stdin="Hi.\n/quit\n")
+        download.assert_called_once_with(download=True)
+        self.assertEqual(load.call_count, 2)
+        self.assertIn("Public answer.", output)
 
     def test_session_only_leaves_no_file_and_does_not_recall_other_sessions(self):
         self.invoke("chat", "--impl", "stock", "--session-only",
