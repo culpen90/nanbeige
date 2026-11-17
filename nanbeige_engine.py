@@ -19,6 +19,10 @@ MODEL_FILES = (
 )
 
 
+class CheckpointUnavailableError(ValueError):
+    """The pinned checkpoint is missing or incomplete in the local cache."""
+
+
 def model_path(*, download: bool = False) -> Path:
     from huggingface_hub import snapshot_download
     from huggingface_hub.errors import LocalEntryNotFoundError
@@ -29,9 +33,11 @@ def model_path(*, download: bool = False) -> Path:
             local_files_only=not download, max_workers=2,
         ))
     except LocalEntryNotFoundError as exc:
-        raise ValueError("Checkpoint missing. Run ./nanbeige setup first.") from exc
+        if download:
+            raise
+        raise CheckpointUnavailableError("Checkpoint missing or incomplete. Run ./nanbeige setup.") from exc
     if missing := [name for name in MODEL_FILES if not (path / name).is_file()]:
-        raise ValueError(f"Checkpoint is incomplete: {', '.join(missing)}. Run ./nanbeige setup.")
+        raise CheckpointUnavailableError(f"Checkpoint is incomplete: {', '.join(missing)}. Run ./nanbeige setup.")
     return path
 
 

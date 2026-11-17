@@ -16,7 +16,7 @@ import sys
 from time import perf_counter
 
 from nanbeige_context import prepare_chat
-from nanbeige_engine import MODEL_ID, REVISION, Engine, Settings, model_path
+from nanbeige_engine import MODEL_ID, REVISION, CheckpointUnavailableError, Engine, Settings, model_path
 from nanbeige_gemini import DEFAULT_GEMINI_MODEL, GeminiClient
 from nanbeige_memory import MemoryStore
 
@@ -25,10 +25,17 @@ def stderr(*args):
     print(*args, file=sys.stderr, flush=True)
 
 
-def load_engine(settings):
+def load_engine(settings, *, download_missing=False):
     started = perf_counter()
     stderr(f"Loading {MODEL_ID} on Metal…")
-    engine = Engine(settings)
+    try:
+        engine = Engine(settings)
+    except CheckpointUnavailableError:
+        if not download_missing:
+            raise
+        stderr("Downloading the pinned checkpoint from Hugging Face (about 3.2 GiB for a fresh install)…")
+        model_path(download=True)
+        engine = Engine(settings)
     stderr(f"Ready in {perf_counter() - started:.2f}s")
     return engine
 
@@ -494,7 +501,7 @@ def main():
     generation.add_argument("--think", action="store_true", help="enable the model's reasoning template")
     generation.add_argument("--system")
     generation.add_argument("--stats", action="store_true")
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, epilog="Run without a command to start chat.")
     sub = parser.add_subparsers(dest="command", required=True)
     setup = sub.add_parser("setup", help="download the pinned checkpoint to the Hugging Face cache")
     setup.add_argument("--dspark", action="store_true", help="also download the official speculative draft head")
@@ -544,7 +551,7 @@ def main():
                              default=["baseline", "lookup", "dspark"])
     speculative.add_argument("--draft-cap", type=int, choices=range(1, 8), default=3)
     speculative.add_argument("--draft-bits", type=int, choices=[2, 4], default=4)
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[1:] or ["chat"])
     try:
         if args.command == "setup":
             print(model_path(download=True))
@@ -568,7 +575,7 @@ def main():
             if args.memory is None and not args.session_only:
                 args.memory = Path.home() / "nanbeige-memory.sqlite3"
             with MemoryStore(args.memory) as store:
-                engine = load_engine(settings)
+                engine = load_engine(settings, download_missing=True)
                 watcher = nullcontext()
                 if client is not None:
                     from nanbeige_compression import CompressionWatcher

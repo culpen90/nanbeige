@@ -2,8 +2,9 @@
 set -eu
 launcher=$(/usr/bin/readlink -f "$0")
 root=$(dirname -- "$launcher")
+export PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
 if ! command -v uv >/dev/null 2>&1; then
-    echo "Install uv, then run nanbeige setup." >&2
+    echo "Install uv from https://docs.astral.sh/uv/getting-started/installation/, then relaunch Nanbeige." >&2
     exit 1
 fi
 if [ "$(uname -s)/$(uname -m)" != "Darwin/arm64" ]; then

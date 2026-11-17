@@ -3,15 +3,21 @@
 A local Metal inference harness for the exact [MercuriusDream/Nanbeige4.2-3B-mlx-6bit checkpoint](https://huggingface.co/MercuriusDream/Nanbeige4.2-3B-mlx-6bit/tree/0ed232c61a153d4596bf3cf346f5a1a9b1acd870).
 The launcher uses locked native arm64 packages. It downloads the weights, tokenizer and template, then runs offline. The model keeps its original affine 6-bit weights and both passes through the 22-layer stack.
 
-You need an Apple Silicon Mac and `uv`. Run these commands from the checkout.
+## Start chatting
+
+On an Apple Silicon Mac with [`uv`](https://docs.astral.sh/uv/getting-started/installation/) installed, double-click **Nanbeige Chat.command** in Finder to open chat in Terminal. To keep it handy, use Finder’s **Make Alias** and move the alias to your Desktop.
+
+From a terminal in the checkout, run `./nanbeige`. If the launcher is on your PATH, type `nanbeige` from anywhere.
+
+Chat downloads the pinned checkpoint on first launch if it’s missing (about 3.2 GiB). Subsequent launches use the local cache. Type a message at `you>` and use `/quit` to exit.
+
+Use the explicit `chat` command to pass options, `setup` to download the checkpoint ahead of time, or `run` for a single prompt.
 
 ```sh
-./nanbeige setup
 ./nanbeige chat --stats
+./nanbeige setup
 ./nanbeige run 'Explain what a torque wrench does in one sentence.' --stats
 ```
-
-If the launcher is installed on your PATH, use `nanbeige chat --stats` from any directory.
 
 Use `chat` to keep the weights resident across turns. It reuses the exact common token prefix, including previously generated text when the template produces the same IDs. The model uses the repository's direct-answer template and greedy decoding by default. `--think` enables its reasoning template; allow more output tokens for longer answers. Use `--temperature 0.6 --top-p 0.95` for sampled output.
 
