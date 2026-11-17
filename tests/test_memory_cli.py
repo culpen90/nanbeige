@@ -1,13 +1,16 @@
 """Exercise memory commands and prompt injection together without loading weights."""
 
 from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
+from io import BytesIO, StringIO
+import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
 import nanbeige_cli
+from nanbeige_compression import CompressionWatcher
 from nanbeige_engine import Engine, Event
 
 
@@ -113,3 +116,64 @@ class MemoryCLITests(unittest.TestCase):
         self.invoke("chat", "--impl", "stock", "--session-only",
                     stdin="/remember My call sign is Maple.\n/reset\nWhat is my call sign?\n/quit\n")
         self.assertNotIn("Maple", self.engines[-1].last_prompt)
+
+    def test_gemini_watcher_applies_a_summary_in_chat(self):
+        self.check_chat_compression(openrouter=False)
+
+    def test_openrouter_watcher_applies_a_summary_in_chat(self):
+        self.check_chat_compression(openrouter=True)
+
+    def check_chat_compression(self, *, openrouter):
+        prompts = iter(["Cedar " + "details " * 70, "Recent exchange", "Current request", "/quit"])
+        request_bodies = []
+        watchers = []
+
+        def start_watcher(*args, **kwargs):
+            watcher = CompressionWatcher(*args, **kwargs)
+            watchers.append(watcher)
+            return watcher
+
+        def read_prompt(_):
+            prompt = next(prompts)
+            if prompt in ("Recent exchange", "Current request", "/quit"):
+                watcher = watchers[0]
+                with watcher._condition:
+                    self.assertTrue(watcher._condition.wait_for(lambda: watcher._ready is not None, timeout=3))
+            return prompt
+
+        def request(url_request, *, timeout):
+            payload = json.loads(url_request.data)
+            if openrouter:
+                self.assertEqual(url_request.full_url, "https://openrouter.ai/api/v1/chat/completions")
+                self.assertEqual(url_request.get_header("Authorization"), "Bearer router-test-key")
+                self.assertIsNone(url_request.get_header("X-goog-api-key"))
+                self.assertEqual(payload["model"], "openai/gpt-oss-20b")
+                observed = json.loads(payload["messages"][1]["content"])
+            else:
+                self.assertEqual(url_request.get_header("X-goog-api-key"), "studio-test-key")
+                self.assertIsNone(url_request.get_header("Authorization"))
+                self.assertTrue(url_request.full_url.endswith("/gemini-4-hydrogen:generateContent"))
+                observed = json.loads(payload["contents"][0]["parts"][0]["text"])
+            request_bodies.append(observed)
+            compress = bool(observed["older_messages"])
+            decision = json.dumps({"compress": compress, "summary": "Cedar is active." if compress else ""})
+            if openrouter:
+                result = {"choices": [{"message": {"content": decision}, "finish_reason": "stop"}]}
+            else:
+                result = {"candidates": [{"content": {"parts": [{"text": decision}]}, "finishReason": "STOP"}]}
+            return BytesIO(json.dumps(result).encode())
+
+        provider_args = ("--compression-provider", "openrouter", "--openrouter-model", "openai/gpt-oss-20b")
+        with (patch.dict(os.environ, {"GEMINI_API_KEY": "studio-test-key", "OPENROUTER_API_KEY": "router-test-key"}),
+              patch("nanbeige_compression.CompressionWatcher", side_effect=start_watcher),
+              patch("nanbeige_watcher_api.urlopen", side_effect=request),
+              patch("builtins.input", side_effect=read_prompt)):
+            self.invoke("chat", "--impl", "stock", "--session-only", "--compress-context", "--think",
+                        "--system", "Private system prompt", *(provider_args if openrouter else ()))
+
+        self.assertIn("Cedar is active.", self.engines[-1].last_prompt)
+        self.assertIn("Recent exchange", self.engines[-1].last_prompt)
+        self.assertIn("Current request", self.engines[-1].last_prompt)
+        self.assertNotIn("details details", self.engines[-1].last_prompt)
+        self.assertEqual(request_bodies[0]["recent_exchange"][1]["content"], "Public answer.")
+        self.assertNotIn("Private system prompt", str(request_bodies))

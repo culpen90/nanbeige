@@ -6,6 +6,7 @@ from dataclasses import asdict, replace
 import hashlib
 from importlib.metadata import version
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
@@ -16,6 +17,7 @@ from time import perf_counter
 
 from nanbeige_context import prepare_chat
 from nanbeige_engine import MODEL_ID, REVISION, Engine, Settings, model_path
+from nanbeige_gemini import DEFAULT_GEMINI_MODEL, GeminiClient
 from nanbeige_memory import MemoryStore
 
 
@@ -76,15 +78,16 @@ def messages_for(prompt, system):
     return messages + [{"role": "user", "content": prompt}]
 
 
-def display(engine, messages, args, store=None):
+def display(engine, messages, args, store=None, *, summary=""):
     output = []
     options = dict(max_tokens=args.max_tokens, temperature=args.temperature, top_p=args.top_p)
     if store is None:
         events = engine.generate(messages, thinking=args.think, **options)
     else:
         started = perf_counter()
-        ids, messages = prepare_chat(engine, messages, max_tokens=args.max_tokens,
-                                     thinking=args.think, store=store)
+        ids, messages = prepare_chat(
+            engine, messages, max_tokens=args.max_tokens, thinking=args.think, store=store, summary=summary,
+        )
         events = engine.generate_ids(ids, started=started, **options)
     try:
         for event in events:
@@ -155,7 +158,31 @@ _CHAT_MEMORY_COMMANDS = {
 }
 
 
-def chat(engine, args, store):
+def compression_client(args):
+    if not args.compress_context:
+        return None
+    if args.compression_provider == "openrouter":
+        if args.gemini_model is not None:
+            raise ValueError("--gemini-model is for the Gemini compression provider.")
+        if not args.openrouter_model:
+            raise ValueError("Select an OpenRouter model using --openrouter-model MODEL.")
+        key = os.environ.get("OPENROUTER_API_KEY")
+        if not key:
+            raise ValueError("OpenRouter context compression needs OPENROUTER_API_KEY.")
+        from nanbeige_openrouter import OpenRouterClient
+
+        return OpenRouterClient(key, args.openrouter_model)
+
+    if args.openrouter_model is not None:
+        raise ValueError("--openrouter-model requires --compression-provider openrouter.")
+    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not key:
+        raise ValueError("--compress-context needs a Google AI Studio key in GEMINI_API_KEY or GOOGLE_API_KEY.")
+    model = DEFAULT_GEMINI_MODEL if args.gemini_model is None else args.gemini_model
+    return GeminiClient(key, model)
+
+
+def chat(engine, args, store, watcher=None):
     messages = messages_for("", args.system)[:-1]
     stderr("Enter a prompt. /remember TEXT saves a note; /memory lists notes; /forget ID removes a note.")
     stderr("/reset starts a new chat; /clear-memory clears the chat and saved memory; /quit exits.")
@@ -186,13 +213,17 @@ def chat(engine, args, store):
                 if command in ("/reset", "/clear-memory"):
                     engine.reset()
                     messages = messages_for("", args.system)[:-1]
+                    if watcher is not None:
+                        watcher.reset()
             except (OSError, ValueError, sqlite3.Error) as exc:
                 stderr(exc)
             continue
+        if watcher is not None:
+            messages = watcher.apply(messages)
         turn = [*messages, {"role": "user", "content": prompt}]
         try:
             print("nanbeige> ", end="", flush=True)
-            reply, retained = display(engine, turn, args, store)
+            reply, retained = display(engine, turn, args, store, summary=watcher.summary if watcher else "")
         except KeyboardInterrupt:
             print()
             stderr("Generation interrupted.")
@@ -202,7 +233,8 @@ def chat(engine, args, store):
             stderr(exc)
             continue
         answer = visible_reply(reply, args.think)
-        messages = [*retained, {"role": "assistant", "content": answer}]
+        assistant = {"role": "assistant", "content": answer}
+        messages = [*retained, assistant] if watcher is None else watcher.observe([*turn, assistant])
         try:
             store.record(prompt, answer)
         except (OSError, ValueError, sqlite3.Error) as exc:
@@ -474,6 +506,14 @@ def main():
     chat_memory.add_argument("--memory", type=Path, metavar="PATH",
                              help="use a different database (default: ~/nanbeige-memory.sqlite3)")
     chat_memory.add_argument("--session-only", action="store_true", help="keep memory only for this session")
+    interactive.add_argument("--compress-context", action="store_true",
+                             help="let a separate model monitor chat and decide when to compress history")
+    interactive.add_argument("--compression-provider", choices=("gemini", "openrouter"), default="gemini",
+                             help="context watcher provider (default: gemini)")
+    interactive.add_argument("--gemini-model", metavar="MODEL",
+                             help=f"Gemini context watcher model (default: {DEFAULT_GEMINI_MODEL})")
+    interactive.add_argument("--openrouter-model", metavar="MODEL",
+                             help="OpenRouter model with structured outputs (OPENROUTER_API_KEY required)")
     memory = sub.add_parser("memory", help="inspect or manage a local memory database without loading the model")
     memory.add_argument("path", type=Path)
     actions = memory.add_subparsers(dest="action", required=True)
@@ -524,10 +564,21 @@ def main():
             serve(lambda: load_engine(settings), host=args.host, port=args.port)
             return 0
         if args.command == "chat":
+            client = compression_client(args)
             if args.memory is None and not args.session_only:
                 args.memory = Path.home() / "nanbeige-memory.sqlite3"
             with MemoryStore(args.memory) as store:
-                chat(load_engine(settings), args, store)
+                engine = load_engine(settings)
+                watcher = nullcontext()
+                if client is not None:
+                    from nanbeige_compression import CompressionWatcher
+
+                    stderr(f"Context watcher enabled. Completed chat turns are sent to {client.provider_name} "
+                           f"({client.model}).")
+                    watcher = CompressionWatcher(client, engine, max_tokens=args.max_tokens, thinking=args.think,
+                                                 report=stderr)
+                with watcher as active_watcher:
+                    chat(engine, args, store, active_watcher)
             return 0
         if args.command == "run":
             prompt = read_prompt(args)
