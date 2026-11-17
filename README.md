@@ -33,6 +33,37 @@ Use `/memory` to list explicit notes, `/forget ID` to remove a note, and `/clear
 
 The database stores explicit notes and bounded excerpts from completed turns as local, unencrypted text. You can use `./nanbeige memory PATH list` to inspect notes or `./nanbeige memory PATH history` to inspect saved turns without loading the model. That command also accepts `remember TEXT`, `forget ID`, and `clear`. Use different paths for separate memories. The local API stays stateless; its clients supply their conversation history as before.
 
+## Automatic context compression
+
+The watcher sends completed turns from the current chat to the selected service in the background. It uses the local prompt's token budget and conversation content to decide when to summarize older exchanges. Nanbeige checks the summary against the local token budget and keeps the latest exchange verbatim. Replies still run locally, and chat continues with local history and recall if the watcher is slow or unavailable.
+
+The summary lives in RAM until `/reset`, `/clear-memory`, or exit. Add `--session-only` to keep the local memory database in RAM too.
+
+### Google AI Studio
+
+With `--compress-context` enabled, the watcher defaults to `gemini-4-hydrogen` through Google AI Studio. Create a key to get started. [Google AI Studio keys](https://aistudio.google.com/api-keys)
+
+```sh
+export GEMINI_API_KEY='your-ai-studio-key'
+./nanbeige chat --compress-context
+```
+
+Use `GOOGLE_API_KEY` as an alternative environment variable or `--gemini-model MODEL` to select a different Gemini model.
+
+Gemini 4 Hydrogen is available on the Gemini API free tier up to your project's quota. Google may use free-tier API content to improve its products. [Google AI Studio pricing](https://aistudio.google.com/docs/pricing#gemini-4-hydrogen)
+
+### OpenRouter
+
+Create an OpenRouter API key and select a text model that supports JSON Schema structured outputs. OpenRouter pricing and limits depend on the selected model. [OpenRouter keys](https://openrouter.ai/keys) · [Browse text models with structured outputs](https://openrouter.ai/models?fmt=cards&input_modalities=text&output_modalities=text&supported_parameters=structured_outputs)
+
+```sh
+export OPENROUTER_API_KEY='your-openrouter-key'
+./nanbeige chat --compress-context --compression-provider openrouter \
+  --openrouter-model openai/gpt-oss-20b
+```
+
+The example uses a paid OpenRouter model. [GPT-OSS 20B pricing](https://openrouter.ai/openai/gpt-oss-20b)
+
 ## Local API
 
 ```sh

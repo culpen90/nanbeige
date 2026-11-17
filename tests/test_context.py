@@ -32,7 +32,7 @@ class Store:
         self.excerpts = excerpts
         self.calls = []
 
-    def recall(self, query, *, exclude):
+    def recall(self, query, *, exclude, fallback_turn=True):
         self.calls.append((query, exclude))
         return self.excerpts
 

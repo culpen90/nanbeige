@@ -158,7 +158,7 @@ class MemoryStore:
             self._db.execute("DELETE FROM turns")
 
     def recall(
-        self, query: str, *, limit: int = 4, exclude: Collection[tuple[str, str]] = (),
+        self, query: str, *, limit: int = 4, exclude: Collection[tuple[str, str]] = (), fallback_turn: bool = True,
     ) -> list[str]:
         if limit <= 0:
             return []
@@ -188,6 +188,6 @@ class MemoryStore:
         results = [match[-1] for match in matches]
         if recent_note and not any(is_note for _, is_note, _, _ in matches):
             results.append(recent_note)
-        if recent_turn and not matches:
+        if fallback_turn and recent_turn and not matches:
             results.append(recent_turn)
         return list(dict.fromkeys(results))[:limit]
