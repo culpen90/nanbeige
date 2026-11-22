@@ -1,6 +1,6 @@
 [project]
 name = "nanbeige-fast"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local Apple Silicon inference for the Nanbeige4.2 6-bit checkpoint"
 requires-python = ">=3.13,<3.14"
 dependencies = [
