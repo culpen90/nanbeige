@@ -8,6 +8,10 @@ from queue import Queue
 from nanbeige_server import _Server
 
 
+TEST_KEY = "sk-nanbeige-test"
+AUTH = {"Authorization": f"Bearer {TEST_KEY}"}
+
+
 @dataclass
 class Stats:
     prompt_tokens: int = 40
@@ -46,7 +50,7 @@ class ServerTests(unittest.TestCase):
         started = Queue()
 
         def run():
-            with _Server("127.0.0.1", 0, Engine) as server:
+            with _Server("127.0.0.1", 0, Engine, TEST_KEY) as server:
                 started.put(server)
                 server.serve_forever(poll_interval=0.02)
 
@@ -66,7 +70,23 @@ class ServerTests(unittest.TestCase):
     def complete(self, **params):
         return self.request("POST", "/v1/chat/completions", body=json.dumps({
             "model": Engine.model_id, "messages": [{"role": "user", "content": "Hello"}], **params,
-        }), headers={"Content-Type": "application/json"})
+        }), headers={"Content-Type": "application/json", **AUTH})
+
+    def test_api_requires_bearer_key_before_reading_input(self):
+        for method, path in [("GET", "/v1/models"), ("POST", "/v1/chat/completions")]:
+            for authorization in [None, "Bearer sk-wrong", f"Basic {TEST_KEY}", "Bearer é"]:
+                with self.subTest(method=method, authorization=authorization):
+                    headers = {"Authorization": authorization} if authorization else {}
+                    status, media_type, body = self.request(method, path, headers=headers)
+                    self.assertEqual((status, media_type), (401, "application/json"))
+                    self.assertEqual(json.loads(body)["error"]["type"], "authentication_error")
+                    self.assertNotIn(TEST_KEY.encode(), body)
+        self.assertEqual(self.server.engine.calls, [])
+
+    def test_health_check_is_public(self):
+        status, _, body = self.request("GET", "/health")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["status"], "ok")
 
     def test_json_and_sse_share_one_engine_and_report_matching_usage(self):
         status, media_type, body = self.complete(max_tokens=12, thinking=True, top_p=0.8)
@@ -99,13 +119,13 @@ class ServerTests(unittest.TestCase):
         self.assertIn("context limit", json.loads(body)["error"]["message"])
 
     def test_loopback_host_and_body_limits(self):
-        status, _, body = self.request("GET", "/v1/models")
+        status, _, body = self.request("GET", "/v1/models", headers=AUTH)
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["data"][0]["id"], Engine.model_id)
         status, _, _ = self.request("GET", "/health", headers={"Host": "external.example"})
         self.assertEqual(status, 403)
         status, _, _ = self.request("POST", "/v1/chat/completions", headers={
-            "Content-Type": "application/json", "Content-Length": str(2 * 1024 * 1024),
+            "Content-Type": "application/json", "Content-Length": str(2 * 1024 * 1024), **AUTH,
         })
         self.assertEqual(status, 413)
         self.assertEqual(self.server.engine.calls, [])

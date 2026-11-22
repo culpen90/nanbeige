@@ -72,14 +72,24 @@ The example uses a paid OpenRouter model. [GPT-OSS 20B pricing](https://openrout
 
 ## Local API
 
+Run `./nanbeige api-key` to get your local `sk-` API key. The first run creates the key in `~/.config/nanbeige/api-key` (under `$XDG_CONFIG_HOME` when set). Later runs print the same key.
+
+Start the server in one terminal.
+
 ```sh
 ./nanbeige serve --port 8080
+```
+
+In another terminal, use the key to send a request.
+
+```sh
 curl -sS http://127.0.0.1:8080/v1/chat/completions \
+  -H "Authorization: Bearer $(./nanbeige api-key)" \
   -H 'Content-Type: application/json' \
   -d '{"model":"MercuriusDream/Nanbeige4.2-3B-mlx-6bit","messages":[{"role":"user","content":"Say hello in one sentence."}],"max_tokens":32}'
 ```
 
-Set the base URL to `http://127.0.0.1:8080/v1` and use the model ID shown above. This is a text chat subset of the OpenAI API: model discovery, JSON responses, streaming with `"stream":true`, and optional `"stream_options":{"include_usage":true}`. The server keeps one model and handles one request at a time. It binds to loopback only. The response includes measured latency and token throughput.
+For OpenAI-compatible clients, paste the key into the API key field, set the base URL to `http://127.0.0.1:8080/v1`, and use the model ID shown above. Model discovery and chat completions require the key. The server supports JSON responses, streaming with `"stream":true`, and optional `"stream_options":{"include_usage":true}`. It keeps one model, handles one request at a time, and binds to loopback only. The response includes measured latency and token throughput.
 
 ## Measure
 

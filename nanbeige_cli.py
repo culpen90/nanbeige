@@ -537,6 +537,7 @@ def main():
     api = sub.add_parser("serve", parents=[common], help="serve local OpenAI-style chat requests")
     api.add_argument("--host", choices=["127.0.0.1", "::1"], default="127.0.0.1")
     api.add_argument("--port", type=int, default=8080)
+    sub.add_parser("api-key", help="print the local API key, creating one on first use")
     benchmark = argparse.ArgumentParser(add_help=False)
     benchmark.add_argument("--workload", choices=list(PROMPTS), default="short")
     benchmark.add_argument("--max-tokens", type=int, default=48)
@@ -553,6 +554,11 @@ def main():
     speculative.add_argument("--draft-bits", type=int, choices=[2, 4], default=4)
     args = parser.parse_args(sys.argv[1:] or ["chat"])
     try:
+        if args.command == "api-key":
+            from nanbeige_api_key import get_api_key
+
+            print(get_api_key())
+            return 0
         if args.command == "setup":
             print(model_path(download=True))
             if args.dspark:
