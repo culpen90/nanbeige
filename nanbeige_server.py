@@ -1,6 +1,7 @@
 """A local, text-only subset of the OpenAI Chat Completions API."""
 
 import json
+import secrets
 import socket
 import time
 import uuid
@@ -8,6 +9,8 @@ from contextlib import closing
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from ipaddress import ip_address
 from itertools import chain
+
+from nanbeige_api_key import get_api_key
 
 
 _MAX_BODY = 1024 * 1024
@@ -117,6 +120,8 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", media_type)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Connection", "close")
+        if status == 401:
+            self.send_header("WWW-Authenticate", "Bearer")
         if length is not None:
             self.send_header("Content-Length", str(length))
         self.end_headers()
@@ -133,6 +138,16 @@ class _Handler(BaseHTTPRequestHandler):
         self._send_json(403, _error("Use a loopback Host header."))
         return False
 
+    def _valid_api_key(self):
+        headers = self.headers.get_all("Authorization", [])
+        if len(headers) == 1:
+            scheme, _, token = headers[0].partition(" ")
+            token = token.lstrip(" ")
+            if scheme.lower() == "bearer" and token.isascii() and secrets.compare_digest(token, self.server.api_key):
+                return True
+        self._send_json(401, _error("Missing or invalid API key.", "authentication_error"))
+        return False
+
     def do_GET(self):
         if not self._valid_host():
             return
@@ -140,6 +155,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._send_json(200, {"status": "ok", "model": engine.model_id})
         elif self.path == "/v1/models":
+            if not self._valid_api_key():
+                return
             model = {"id": engine.model_id, "object": "model", "created": 0, "owned_by": "local"}
             self._send_json(200, {"object": "list", "data": [model]})
         else:
@@ -156,6 +173,8 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self.path != _CHAT_PATH:
             self._send_json(404, _error("Unknown endpoint."))
+            return
+        if not self._valid_api_key():
             return
         if self.headers.get_content_type() != "application/json":
             self._send_json(415, _error("Expected application/json."))
@@ -246,11 +265,12 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class _Server(HTTPServer):
-    def __init__(self, host, port, engine_factory):
+    def __init__(self, host, port, engine_factory, api_key):
         address = ip_address("127.0.0.1" if host.lower() == "localhost" else host)
         if not address.is_loopback or getattr(address, "scope_id", None):
             raise ValueError("The server binds only to a loopback address.")
         self.address_family = socket.AF_INET6 if address.version == 6 else socket.AF_INET
+        self.api_key = api_key
         super().__init__((str(address), port), _Handler)
         self.url_host = f"[{address}]" if address.version == 6 else str(address)
         self.allowed_hosts = {"localhost", self.url_host, f"localhost:{self.server_port}",
@@ -263,8 +283,9 @@ class _Server(HTTPServer):
 
 
 def serve(engine_factory, host="127.0.0.1", port=8080):
-    with _Server(host, port, engine_factory) as server:
+    with _Server(host, port, engine_factory, get_api_key()) as server:
         print(f"{server.engine.model_id} ready at http://{server.url_host}:{server.server_port}/v1", flush=True)
+        print("Run `nanbeige api-key` to show the API key.", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:
